@@ -1,0 +1,24 @@
+#!/bin/bash
+# -------------------------------------------------------------
+#  Worker job that runs experiment.py
+#  (the scheduler assigns nodes from the queue cpu-large)
+#
+#  Submit it through submit_experiment in scripts/common.sh:
+#      submit_experiment <job name> "<MYARGS string>"
+#  Arguments (--category etc.) are passed in the environment
+#  variable MYARGS (qsub -v MYARGS=...)
+#  The log directory (-o/-e) is set to EO_DIR by submit_experiment
+# -------------------------------------------------------------
+#PBS -V
+#PBS -S /bin/bash
+#PBS -j eo
+#PBS -q cpu-large
+#PBS -l select=1:ncpus=96:mem=512gb:ompthreads=1
+
+# Assumes submission from scripts/. After the cd, ../src, ../results and
+# ../model resolve correctly, so python is launched with relative paths
+# that do not depend on the name of the project directory.
+# Python comes from the uv-managed .venv (create it first with `uv sync`
+# in the project root)
+cd "$PBS_O_WORKDIR"
+../.venv/bin/python3 ../src/experiment.py $MYARGS

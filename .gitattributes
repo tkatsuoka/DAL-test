@@ -1,0 +1,3 @@
+# Scripts run on the (Linux) cluster: keep LF line endings
+*.sh   text eol=lf
+*.pbs  text eol=lf

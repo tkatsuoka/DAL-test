@@ -1,0 +1,14 @@
+[project]
+name = "dal-test"
+version = "0.1.0"
+description = "Statistical test for diffusion-based anomaly localization via selective inference (numerical experiments)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "matplotlib>=3.10.0",
+    "onnx>=1.17.0",
+    "onnxruntime>=1.20.1",
+    "onnxsim>=0.4.36",
+    "sicore>=2.5.0",
+    "torchvision==0.15.2",
+]

@@ -1,4 +1,0 @@
-[submodule "sicore"]
-	path = sicore
-	url = git@github.com:Takeuchi-Lab-SI-Group/sicore.git
-	branch = upload

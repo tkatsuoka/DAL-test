@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.egg-info/
+build/
+.venv/
+
+# Generated locally (trained models, experiment results, figures, PBS logs)
+model/
+results/
+plots/
+eo/
+*.pickle
+*.pkl
+scripts/**/*.sh.o*
+scripts/**/*.sh.e*
