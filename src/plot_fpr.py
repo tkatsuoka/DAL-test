@@ -2,19 +2,17 @@
 
 Loads the FPR results of experiment.py (pickles in ../results/.../{category}/fpr/) and
 draws a line plot of FPR (y-axis) against image size in pixels (x-axis).
-Aggregation and styling follow plot_fpr.ipynb, which produced the existing paper figure
-(truncated to the first 100 iterations per seed and 1000 in total; bonferroni compares
-the z statistic with a threshold corrected for 2^(number of pixels) hypotheses;
-figsize 4x4, font 12, etc.).
+The first 100 results of each seed are used (1000 in total); bonferroni compares the
+z statistic with a threshold corrected for 2^(number of pixels) hypotheses.
 
 Results of piecewise-linear approximation (PWL) models are selected with --act_fn /
 --pwl_knots (reads the result tree ../results/pwl/{act_fn}{K}/). If omitted, the
-existing ReLU results are used.
+ReLU results are used.
 
 Usage:
     cd src
     uv run python plot_fpr.py --act_fn silu --pwl_knots 8   # PWL SiLU (K=8)
-    uv run python plot_fpr.py                               # ReLU (original)
+    uv run python plot_fpr.py                               # ReLU (Figure 3)
 """
 
 import argparse
@@ -38,16 +36,16 @@ CATEGORIES = ["iid", "corr"]                # categories to plot (one figure eac
 SIZES = [8, 16, 32, 64]                     # image sizes (x-axis labels: pixels, size^2)
 SEEDS = list(range(10))                     # seeds to aggregate (missing ones skipped)
 ALPHA = 0.05                                # significance level
-PER_SEED_LIMIT = 100                        # iterations used per seed (same as the ipynb)
-TOTAL_LIMIT = 1000                          # total iterations used (same as the ipynb)
-# Off by default: the current experiment.py does not compute permutation (fixed at -1).
-# Set to True only to plot older results with valid permutation_p_values.
+PER_SEED_LIMIT = 100                        # results used per seed
+TOTAL_LIMIT = 1000                          # total results used
+# Whether to plot the permutation test: Figure 3 includes it (set to True),
+# the SiLU figure in Appendix C (Figure 7) does not.
 INCLUDE_PERMUTATION = False
 # ================================================================
 
 
 def compute_threshold(alpha: float, base: float, power: float) -> float:
-    """Return the Bonferroni rejection threshold (same computation as plot_fpr.ipynb).
+    """Return the Bonferroni rejection threshold.
 
     Solves for the two-sided threshold th corrected for base^power (= 2^(number of pixels))
     hypotheses, using the log form of 2 * Phi(-th) = alpha / base^power.
@@ -60,7 +58,7 @@ def compute_threshold(alpha: float, base: float, power: float) -> float:
 
 
 def load_results(results_base: str, category: str, size: int) -> dict[str, np.ndarray]:
-    """Return (category, size) results merged over all seeds, truncated as in the ipynb."""
+    """Return (category, size) results merged over all seeds, truncated to the limits above."""
     keys = ["naive_p_values", "selective_p_values", "oc_p_values", "z", "permutation_p_values"]
     values: dict[str, list] = {key: [] for key in keys}
     for seed in SEEDS:
@@ -107,8 +105,8 @@ def plot_category(results_base: str, category: str, tag: str) -> None:
     if not INCLUDE_PERMUTATION:
         fpr_lists.pop("permutation")
 
-    # Same styling as plot_fpr.ipynb (evenly spaced positions + pixel-count labels)
-    # Fix each method's color so it matches the original figure even without permutation
+    # Evenly spaced positions with pixel-count labels
+    # Fix each method's color so that it does not change when permutation is omitted
     colors = {
         "proposed": "C0", "w/o-pp": "C1", "bonferroni": "C2",
         "permutation": "C3", "naive": "C4",

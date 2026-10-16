@@ -34,7 +34,7 @@ POWER_SIZE=64              # image size for power (same as the main power experi
 SEEDS=(0 1 2 3 4 5 6 7 8 9)
 SIGNALS=(1.0 2.0 3.0 4.0)  # signal strengths for power
 DISTANCE=0
-THR=0.8                    # threshold for ReferenceMeanDiff (required; None causes a crash)
+THR=0.8                    # threshold for ReferenceMeanDiff (required)
 # model settings for the syn category (must match the naming scheme in src/model_paths.py)
 TIMESTEPS=460
 STEP=115

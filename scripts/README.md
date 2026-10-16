@@ -63,8 +63,9 @@ so a fresh throwaway model is trained for every iteration. Each iteration runs i
 process, with **1 core = 1 model**, and the workers run "train, then compute intervals" in parallel
 (`experiment.py --model_seed_base` calls `train_synthetic_model_ephemeral` in `model.py`).
 The trained models live only in memory and are **never written to disk**; only the result pickle is saved.
-The goal is **100 independent interval counts** per (category, size). More iterations are run to allow
-for failures, and only the first 100 successful models are used when aggregating.
+The goal is **100 independent interval counts** per (category, size). An iteration in which no anomalous
+region is detected yields no p-value (there is nothing to test), so more iterations are run and the first
+100 interval counts in order are used when aggregating.
 
 #### Collecting interval counts (`submit_intervals.sh`)
 
@@ -73,7 +74,7 @@ line and **adds** the following entries to `result_dict` in the result pickle:
 
 - `searched_intervals` / `truncated_intervals`: the searched intervals / the truncated intervals
 - `search_count` / `detect_count`: the number of searched / detected intervals
-- `model_seeds`: the model seed of each successful iteration (to keep track of failures)
+- `model_seeds`: the model seed of each iteration that yielded a p-value
 
 ```bash
 ./submit_intervals.sh                 # iid and corr (size 8/16/32/64, 20 jobs in total)
@@ -81,7 +82,7 @@ line and **adds** the following entries to `result_dict` in the result pickle:
 ```
 
 - The total number of iterations (= models) is set in `model_seed_count()` in `common.sh`:
-  **size 8: 300 (3x the target of 100), size 16/32/64: 120 each (1.2x)**.
+  **size 8: 300, size 16/32/64: 120 each**.
 - A node has 96 cores. To finish in a single round, the iterations are **split evenly into chunks**
   of at most 96, and each chunk is one job (size 8: 4 jobs x 75 iterations; other sizes: 2 jobs x
   60 iterations; `--workers` = `--iter` = chunk size).
@@ -95,8 +96,7 @@ line and **adds** the following entries to `result_dict` in the result pickle:
   Example for iid: `../results/intervals/iid/fpr/iid_size{8..64}_signal0_seed{0..3}.pickle`.
 - `--exhaustive` and `--model_seed_base` are off by default, so the other drivers are not affected
   (their output paths and results are unchanged).
-- If some iterations fail, the rest continue and only the successful ones are stored in the pickle.
-  100 models over all chunks are enough for aggregation.
+- Iterations that yield no p-value are skipped, and only the others are stored in the pickle.
 - One iteration takes "training on a single core (long for size 64) + exhaustive search".
 
 #### Plotting (`src/plot_intervals.py`)
@@ -109,7 +109,7 @@ python plot_intervals.py     # writes PDFs to ../plots/figures/intervals/
 ```
 
 - For each (category, size), the chunk pickles are concatenated in chunk order and **the first 100
-  successful models** are used (with fewer than 100, it prints a warning and plots what is available).
+  interval counts** are used (with fewer than 100, it prints a warning and plots what is available).
 - One figure is written per metric, with the categories overlaid as lines. By default the metrics are
   `search_count` (number of intervals, `num_of_intervals.pdf`) and `time` (computation time of the
   parametric SI inference, `intervals_time.pdf`). `detect_count` is also stored in the pickles and can be

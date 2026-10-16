@@ -18,7 +18,7 @@ SEEDS=(0 1 2 3 4 5 6 7 8 9)
 SIGNALS=(1.0 2.0 3.0 4.0)
 ITER=110
 DISTANCE=0
-THR=0.8       # threshold for ReferenceMeanDiff (required; None causes a crash)
+THR=0.8       # threshold for ReferenceMeanDiff (required)
 
 for category in "${CATEGORIES[@]}"; do
     for seed in "${SEEDS[@]}"; do

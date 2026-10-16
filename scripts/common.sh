@@ -30,15 +30,16 @@ EXPERIMENT_JOB="${SCRIPTS_DIR}/jobs/experiment.pbs"   # for src/experiment.py
 #  In this experiment one p-value = one independently trained model.
 #  The function below gives, per image size, the total number of
 #  throwaway models to train (1 core = 1 model). The target is 100
-#  successful runs; small sizes fail more often at inference, so more
-#  runs are launched, and the aggregation step (plot_intervals.py)
-#  keeps only the first 100 successful ones.
+#  p-values per size. An iteration yields no p-value when no anomalous
+#  region is detected (there is nothing to test), which happens more
+#  often for small images, so more iterations are run; the aggregation
+#  step (plot_intervals.py) uses the first 100 p-values in order.
 #  submit_intervals.sh splits the runs evenly so that each job has
 #  at most WORKERS (96) iterations.
 model_seed_count() {
     case "$1" in
-        8) echo 300 ;;   # size 8: 3x to allow for failures
-        *) echo 120 ;;   # size 16/32/64: 20% margin
+        8) echo 300 ;;   # size 8
+        *) echo 120 ;;   # size 16/32/64
     esac
 }
 

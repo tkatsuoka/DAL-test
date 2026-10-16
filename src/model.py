@@ -12,9 +12,8 @@ from dataset import SyntheticDataset
 from environment import set_seed, set_env
 from model_paths import build_model_filename
 
-# Note: onnxsim is not imported here (call _require_onnxsim() where it is needed).
-# On import, onnxsim runs `pip install onnxruntime` automatically if onnxruntime is
-# missing; many parallel jobs doing this at once on compute nodes break the shared environment.
+# Note: onnxsim is imported lazily through _require_onnxsim(), which first checks that
+# onnxruntime is installed (onnxsim would otherwise try to install it at import time).
 
 
 # ===== Training settings =========================================
@@ -37,20 +36,16 @@ TRAIN_DATA_SEED_OFFSET = 10000
 
 
 def _require_onnxsim():
-    """Check that onnxsim can be used safely and return its simplify function.
+    """Check that onnxruntime is installed and return onnxsim's simplify function.
 
-    On import, onnxsim tries to run `pip install onnxruntime` if onnxruntime is
-    missing. Parallel jobs doing this at the same time corrupt the shared
-    environment (site-packages), so we first check only that onnxruntime exists
-    and, if it does not, fail immediately with a clear error instead of triggering pip.
+    onnxsim tries to install onnxruntime at import time if it is missing, so we check
+    for onnxruntime first and raise a clear error instead.
     """
     if importlib.util.find_spec("onnxruntime") is None:
         raise RuntimeError(
             "onnxruntime is not available in this Python environment. onnxruntime "
             "is a dependency in pyproject.toml, so check that the job uses the "
-            "uv-managed environment (the .venv created by `uv sync` at the project root). "
-            "(We stop here because onnxsim's automatic pip install conflicts between "
-            "parallel jobs and breaks the environment.)"
+            "uv-managed environment (the .venv created by `uv sync` at the project root)."
         )
     from onnxsim import simplify
 

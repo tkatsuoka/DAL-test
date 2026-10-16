@@ -119,7 +119,8 @@ uv run python plot_intervals.py                    # number of intervals and com
 uv run python plot_pwl_activation.py               # SiLU and its piecewise-linear approximation (Appendix C)
 ```
 
-Figures are written to `../plots/figures/`.
+Figures are written to `../plots/figures/`. Figure 3 includes the permutation test; to plot it,
+set `INCLUDE_PERMUTATION = True` in `src/plot_fpr.py`.
 
 ## Settings used in the paper
 

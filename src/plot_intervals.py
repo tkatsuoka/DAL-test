@@ -10,9 +10,8 @@ size) is split into chunk jobs of at most 96 iterations, and the results of chun
 stored in a single pickle:
     ../results/intervals/{iid|corr}/fpr/{cat}_size{S}_signal0_seed{c}.pickle
 
-For each (category, size), the extra iterations run (size 8: 300, others: 120) are merged
-in chunk order, and the interval counts of the first N_ADOPT (=100) successful models
-(one per model) are used.
+For each (category, size), the chunk results (size 8: 300 iterations, others: 120) are merged
+in chunk order, and the first N_ADOPT (=100) interval counts (one per model) are used.
 
 Usage (run from a top-level subdirectory of the repo, where the result pickles are visible):
     cd src
@@ -34,7 +33,7 @@ RESULTS_BASE = "../results/intervals"       # root directory of the exhaustive r
 OUTPUT_DIR = "../plots/figures/intervals"   # output directory for figures
 SIZES = [8, 16, 32, 64]                     # image sizes on the x-axis
 
-N_ADOPT = 100         # number of models used (first N successful iterations)
+N_ADOPT = 100         # number of interval counts used (first N in order)
 # Chunk numbers to scan (= data seeds; match the split in submit_intervals.sh.
 # size 8 has 4 chunks, the others 2. Missing chunks are skipped.)
 DATA_SEEDS = [0, 1, 2, 3]
@@ -83,10 +82,11 @@ def result_path(category: str, size: int, chunk_seed: int) -> str:
 
 
 def load_counts(category: str, size: int, metric: str) -> np.ndarray | None:
-    """Return the metric for (category, size) over the first N_ADOPT successful models.
+    """Return the metric for (category, size) over the first N_ADOPT models.
 
-    result[metric] is a list over successful iterations (one iteration = one independent
-    model = one interval count). Chunks are merged in order and the first N_ADOPT are kept.
+    result[metric] is a list over the iterations that yielded a p-value (one iteration = one
+    independent model = one interval count). Chunks are merged in order and the first
+    N_ADOPT are kept.
     """
     counts: list[float] = []
     for chunk_seed in DATA_SEEDS:
@@ -105,7 +105,7 @@ def load_counts(category: str, size: int, metric: str) -> np.ndarray | None:
         return None
     if len(counts) < N_ADOPT:
         print(
-            f"  Warning: {category} size={size}: only {len(counts)}/{N_ADOPT} models succeeded. "
+            f"  Warning: {category} size={size}: only {len(counts)}/{N_ADOPT} interval counts found. "
             "For the shortfall, check for missing chunks and the job logs (eo/)"
         )
     return np.asarray(counts[:N_ADOPT], dtype=float)

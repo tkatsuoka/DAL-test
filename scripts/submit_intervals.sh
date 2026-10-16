@@ -9,12 +9,12 @@
 #  compute intervals" in parallel (via experiment.py --model_seed_base;
 #  the models are never saved).
 #
-#  The target is 100 successful runs per (category, size). The total
-#  number of iterations, padded for failures, is set in
-#  model_seed_count() in common.sh:
-#      size 8 -> 300 (3x), size 16/32/64 -> 120 each (1.2x)
-#  The aggregation step (plot_intervals.py) keeps only the first 100
-#  successful runs.
+#  The target is 100 p-values per (category, size). Iterations in which
+#  no anomalous region is detected yield no p-value, so the total number
+#  of iterations is set larger in model_seed_count() in common.sh:
+#      size 8 -> 300, size 16/32/64 -> 120 each
+#  The aggregation step (plot_intervals.py) uses the first 100 p-values
+#  in order.
 #
 #  A node has 96 cores, so the iterations are split evenly into chunks
 #  of at most WORKERS (96), and each job finishes in a single round:

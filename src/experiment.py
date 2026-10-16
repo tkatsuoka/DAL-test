@@ -150,17 +150,16 @@ def fn(args):
         perm_rng = np.random.default_rng(seed)
         corr_z_list = []
         B = 1000
-        # About half of the permuted samples give an empty ROI, so no hypothesis can be formed
-        # (NoHypothesisError); the error limit allows for this (with a limit equal to B the
-        # loop would always stop early)
+        # Permuted samples in which no anomalous region is detected (NoHypothesisError) are
+        # skipped; max_permutation_error bounds the number of skipped samples
         max_permutation_error = 10 * B
         cnt = 0
         permutation_error = 0
         while cnt < B:
             if permutation_error > max_permutation_error:
                 print(
-                    f"permutation failed: idx={idx}, "
-                    f"success={cnt}/{B}, error={permutation_error}"
+                    f"permutation test stopped: idx={idx}, "
+                    f"valid={cnt}/{B}, skipped={permutation_error}"
                 )
                 return None
             try:
@@ -187,7 +186,7 @@ def fn(args):
                 continue
         permutation_p_value = 1 / B * np.sum(np.array(corr_z_list) > np.abs(z))
     except:
-        print(None)
+        print(f"no p-value for idx={idx}")
         traceback.print_exc()
         return None
 
@@ -325,7 +324,7 @@ def experiment(
         truncated_intervals = []
         search_count = []
         detect_count = []
-        # Model seeds of the successful iterations in the independent-model experiment (to track failures)
+        # Model seeds of the iterations that yielded a p-value (independent-model experiment)
         model_seeds = []
         for i in range(num_iter):
             if (
@@ -351,7 +350,7 @@ def experiment(
         result = np.array([p_value for p_value in p_values if p_value is not None])
         if result.size == 0:
             raise RuntimeError(
-                f"All {num_iter} iterations failed (category={category}, "
+                f"No p-value was obtained in any of the {num_iter} iterations (category={category}, "
                 f"size={image_size}, seed={seed}). Check the worker tracebacks."
             )
         selective_p_values = result[:, 0]
@@ -382,7 +381,7 @@ def experiment(
         result_dict["search_count"] = search_count
         result_dict["detect_count"] = detect_count
 
-    # In the independent-model experiment, also record the model seed of each successful iteration
+    # In the independent-model experiment, also record the model seed of each iteration that yielded a p-value
     if model_seed_base is not None:
         result_dict["model_seeds"] = model_seeds
 
