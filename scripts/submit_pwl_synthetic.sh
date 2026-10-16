@@ -1,20 +1,13 @@
 #!/bin/bash
 # -------------------------------------------------------------
-#  Submit the FPR experiments on synthetic data with SiLU diffusion
-#  models whose activations are replaced by a piecewise-linear (PWL)
-#  approximation with K=8 knots (PiecewiseLinearApprox; Appendix C)
-#  NOTE: run from the scripts/ directory (results go to ../results)
-#
-#  Requires: trained models ../model/syn/sim_diffusion_silu_size{S}_...
-#            (if missing, first run `python model.py --category syn --act_fn silu`).
-#            Missing pwl8_ models are generated on the login node
-#            before submission (takes a few seconds).
+#  Submit the FPR experiments with SiLU models whose activations are
+#  replaced by the piecewise-linear approximation (K=8; Appendix C)
+#  Requires the trained SiLU models (python model.py --category syn --act_fn silu)
+#  NOTE: run from the scripts/ directory
 #
 #  Usage:
 #      ./submit_pwl_synthetic.sh          # both iid and corr
 #      ./submit_pwl_synthetic.sh iid      # iid only
-#
-#  Output: under ../results/pwl/silu8/ (kept apart from the main ReLU results)
 # -------------------------------------------------------------
 source "$(dirname "$0")/common.sh"
 
@@ -27,15 +20,11 @@ SIZES=(8 16 32 64)
 SEEDS=(0 1 2 3 4 5 6 7 8 9)
 SIGNAL=0.0
 DISTANCE=0
-THR=0.8                    # threshold for ReferenceMeanDiff (required)
-# model settings for the syn category (must match the naming scheme in src/model_paths.py)
-TIMESTEPS=460
+THR=0.8                    # threshold for ReferenceMeanDiff
+TIMESTEPS=460              # used in the model file names (src/model_paths.py)
 STEP=115
 
-# --- Check the PWL models and generate missing ones ----------
-#  Exit with an error if a trained sim_ model is missing; generate a
-#  missing pwl{K}_ model with rewrite_pwl.py (it only rewrites the
-#  graph, so it is light enough to run on the login node)
+# --- Generate the pwl8_ models from the trained SiLU models if missing
 ensure_pwl_model() {
     local size="$1"
     local sim="${PROJECT_DIR}/model/syn/sim_diffusion_${ACT_FN}_size${size}_timesteps${TIMESTEPS}_step${STEP}.onnx"

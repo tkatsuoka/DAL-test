@@ -17,7 +17,7 @@ SIZES=(8 16 32 64)
 SEEDS=(0 1 2 3 4 5 6 7 8 9)
 SIGNAL=0.0
 DISTANCE=0
-THR=0.8       # threshold for ReferenceMeanDiff (required)
+THR=0.8       # threshold for ReferenceMeanDiff
 
 for category in "${CATEGORIES[@]}"; do
     for size in "${SIZES[@]}"; do

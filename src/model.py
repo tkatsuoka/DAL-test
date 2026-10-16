@@ -12,14 +12,8 @@ from dataset import SyntheticDataset
 from environment import set_seed, set_env
 from model_paths import build_model_filename
 
-# Note: onnxsim is imported lazily through _require_onnxsim(), which first checks that
-# onnxruntime is installed (onnxsim would otherwise try to install it at import time).
 
-
-# ===== Training settings =========================================
-# Training hyperparameters for the synthetic data (syn).
-# Shared by train() (trains models and saves them to files) and
-# train_synthetic_model_ephemeral() (throwaway models for the interval-counting experiment).
+# ===== Training settings (synthetic data) ========================
 SYN_BATCH_SIZE = 32
 SYN_EPOCHS = 1000
 SYN_LR = 3e-4
@@ -28,9 +22,7 @@ SYN_TEST_NUM_TIMESTEPS = 460
 SYN_SAMPLING_STEP = 115
 SYN_IN_CH = 1
 
-# Offset of the training-data seed for the throwaway models.
-# The evaluation data use small seeds (the --seed values, and seed + 2023 for the reference
-# images), so the training data are moved to the 10000 range to keep them disjoint.
+# Training-data seed offset of the interval-count models (disjoint from the evaluation seeds)
 TRAIN_DATA_SEED_OFFSET = 10000
 # ================================================================
 
@@ -230,11 +222,7 @@ def train_epochs(
     beta_end=0.02,
     num_timesteps=1000,
 ):
-    """Train for the given number of epochs with the MSE loss of noise prediction (shared training loop).
-
-    Used by both train() (models saved to files) and
-    train_synthetic_model_ephemeral() (throwaway models).
-    """
+    """Train the noise-prediction network with the MSE loss."""
     optimizer = torch.optim.Adam(diffusion_model.parameters(), lr=lr)
 
     for epoch in range(epochs):
@@ -260,10 +248,7 @@ def train_epochs(
 
 
 def export_simplified_proto(diffusion_model, img_size: int, in_ch: int) -> onnx.ModelProto:
-    """Export the trained model to ONNX, simplify it with onnxsim, and return the ModelProto.
-
-    The export is done in memory (BytesIO), so nothing is written to disk.
-    """
+    """Export the model to ONNX in memory and simplify it with onnxsim."""
     simplify = _require_onnxsim()
     device = torch.device("cpu")
     diffusion_model.eval().to(device)
@@ -283,18 +268,11 @@ def train_synthetic_model_ephemeral(
     model_seed: int,
     act_fn: str = "relu",
 ) -> onnx.ModelProto:
-    """Train one diffusion model on synthetic data for the interval-counting experiment and
-    return the simplified ONNX model in memory (ModelProto). **A throwaway model that is never
-    written to disk.**
+    """Train one model for the interval-count experiment and return it as an in-memory ONNX model.
 
-    Following the design "one p-value = one independently trained model", this is called from
-    the workers of experiment.py; each worker (one core, one model) trains the model and then
-    computes the intervals (the number of threads follows the caller's setting; workers use one
-    thread). Weight initialization, shuffling, and noise generation are driven by model_seed, and
-    the training-data seed is TRAIN_DATA_SEED_OFFSET + model_seed (disjoint from the evaluation data).
+    The model is not saved to disk. The training-data seed is TRAIN_DATA_SEED_OFFSET + model_seed.
     """
-    # Check onnxsim / onnxruntime (needed for the export after training) up front,
-    # so that a missing dependency fails immediately rather than after a long training run.
+    # check the export dependencies before training
     _require_onnxsim()
 
     set_seed(model_seed)
@@ -373,7 +351,7 @@ def train(category: str, act_fn: str):
             num_timesteps=num_timesteps,
         )
 
-        # export ONNX (file names follow the convention in model_paths; ReLU models carry no activation name)
+        # export ONNX
         device = torch.device("cpu")
         diffusion_model.eval().to(device)
         dummy_input = torch.randn(1, in_ch, img_size, img_size).to(device)
@@ -394,9 +372,7 @@ if __name__ == "__main__":
     cmdline_parser.add_argument("-act_fn", "--act_fn", type=str, default="relu")
 
     args, unknowns = cmdline_parser.parse_known_args()
-    # Initialize the environment, the number of threads, and the seed only when run from the CLI
-    # (not at module level, so that importing this module from experiment.py etc.
-    #  does not change the random state or the number of threads).
+    # set only when run as a script (importing this module does not change them)
     set_env()
     torch.set_num_threads(30)
     set_seed(42)

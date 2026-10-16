@@ -1,19 +1,10 @@
-"""Plot the number of intervals (interval count) for each image size.
+"""Plot the number of intervals and the computation time against the image size (Appendix D).
 
-Loads results collected under the design "one p-value (= one interval computation) = one
-independently trained model" and draws a line plot of interval count (y-axis) against
-image size (x-axis).
+Reads the results of scripts/submit_intervals.sh (one pickle per chunk):
+    ../results/intervals/{iid|corr}/fpr/{cat}_size{S}_signal0_seed{chunk}.pickle
+and uses the first N_ADOPT (=100) results per (category, size).
 
-Results are collected by scripts/submit_intervals.sh, which trains a throwaway model per
-iteration in parallel (one core = one model) and computes its intervals. Each (category,
-size) is split into chunk jobs of at most 96 iterations, and the results of chunk c are
-stored in a single pickle:
-    ../results/intervals/{iid|corr}/fpr/{cat}_size{S}_signal0_seed{c}.pickle
-
-For each (category, size), the chunk results (size 8: 300 iterations, others: 120) are merged
-in chunk order, and the first N_ADOPT (=100) interval counts (one per model) are used.
-
-Usage (run from a top-level subdirectory of the repo, where the result pickles are visible):
+Usage:
     cd src
     python plot_intervals.py
 """
@@ -34,8 +25,7 @@ OUTPUT_DIR = "../plots/figures/intervals"   # output directory for figures
 SIZES = [8, 16, 32, 64]                     # image sizes on the x-axis
 
 N_ADOPT = 100         # number of interval counts used (first N in order)
-# Chunk numbers to scan (= data seeds; match the split in submit_intervals.sh.
-# size 8 has 4 chunks, the others 2. Missing chunks are skipped.)
+# chunk indices (= data seeds) to read; missing chunks are skipped
 DATA_SEEDS = [0, 1, 2, 3]
 
 SIGNAL = 0.0                                # synthetic data collected for FPR (signal=0)
@@ -43,13 +33,12 @@ SIGNAL = 0.0                                # synthetic data collected for FPR (
 # Categories to plot (only those with existing pickles are drawn)
 CATEGORIES = ["iid", "corr"]
 
-# Metrics to plot. One figure is produced per metric.
+# Metrics to plot (one figure each)
 #   search_count : number of searched intervals
 #   time         : computation time of parametric SI [s] (not the exhaustive search time)
-# (detect_count, the number of detected intervals, is also saved and can be added if needed)
 METRICS = ["search_count", "time"]
 
-# y-axis labels for the paper (avoid showing raw variable names)
+# y-axis labels
 METRIC_LABELS = {
     "search_count": "Number of intervals",
     "detect_count": "Number of detected intervals",
@@ -70,10 +59,7 @@ SHOW_POINTS = False          # overlay each model's raw interval count as faint 
 
 
 def result_path(category: str, size: int, chunk_seed: int) -> str:
-    """Return the pickle path following the exhaustive saving rule of experiment.py.
-
-    One chunk job = one pickle (data seed = chunk number; see submit_intervals.sh).
-    """
+    """Return the pickle path of one chunk."""
     error = "fpr" if SIGNAL == 0 else "power"
     return (
         f"{RESULTS_BASE}/{category}/{error}/"
@@ -82,12 +68,7 @@ def result_path(category: str, size: int, chunk_seed: int) -> str:
 
 
 def load_counts(category: str, size: int, metric: str) -> np.ndarray | None:
-    """Return the metric for (category, size) over the first N_ADOPT models.
-
-    result[metric] is a list over the iterations that yielded a p-value (one iteration = one
-    independent model = one interval count). Chunks are merged in order and the first
-    N_ADOPT are kept.
-    """
+    """Return the metric for (category, size), merging the chunks in order (first N_ADOPT)."""
     counts: list[float] = []
     for chunk_seed in DATA_SEEDS:
         if len(counts) >= N_ADOPT:

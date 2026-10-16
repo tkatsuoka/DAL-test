@@ -51,15 +51,37 @@ def binary_search(rv_name, distance):
 
 
 def standardized_rv_at_distance(distribution, distance):
-    """Return the standardized distribution at 1-Wasserstein distance `distance` from N(0, 1)."""
-    # Precomputed shape parameters for d = 0.03 (other distances are found by binary_search)
     params_dict = {
-        "skewnorm": {"0.03": 1.141679535895037},
-        "exponnorm": {"0.03": 0.5274333543184184},
-        "gennormsteep": {"0.03": 1.685486347382175},
-        "t": {"0.03": 13.911718115376004},
+        "skewnorm": {
+            "0.03": 1.141679535895037,
+            "0.06": 1.668027646656356,
+            "0.09": 2.253555993158534,
+            "0.12": 3.052977442461724,
+            "0.15": 4.441693019739707,
+        },
+        "exponnorm": {
+            "0.03": 0.5274333543184184,
+            "0.06": 0.7361945074942922,
+            "0.09": 0.9307079975424131,
+            "0.12": 1.1365153042836023,
+            "0.15": 1.372114598160624,
+        },
+        "gennormsteep": {
+            "0.03": 1.685486347382175,
+            "0.06": 1.446878209856004,
+            "0.09": 1.2592111500311147,
+            "0.12": 1.1075283854228473,
+            "0.15": 0.9822742249929434,
+        },
+        "t": {
+            "0.03": 13.911718115376004,
+            "0.06": 7.606345474941293,
+            "0.09": 5.498186625845221,
+            "0.12": 4.441398730633352,
+            "0.15": 3.8067196925891835,
+        },
     }
-    if str(distance) in params_dict[distribution]:
+    if distance in [0.03, 0.06, 0.09, 0.12, 0.15]:
         param = params_dict[distribution][str(distance)]
     else:
         param = binary_search(distribution, distance)

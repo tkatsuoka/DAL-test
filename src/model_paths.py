@@ -5,10 +5,6 @@ Naming convention:
     diffusion_{act}_size{S}_timesteps{T}_step{P}.onnx    : SiLU model (act = silu)
     sim_ prefix                                          : simplified with onnxsim
     pwl{K}_ prefix                                       : activations replaced by a piecewise-linear approximation (K knots)
-
-Note: the independent models of the interval-counting experiment (one p-value = one model)
-are trained inside each job and then discarded (train_synthetic_model_ephemeral in model.py).
-They are never written to disk, so this naming convention does not apply to them.
 """
 
 SUPPORTED_ACT_FNS = {"relu", "silu"}

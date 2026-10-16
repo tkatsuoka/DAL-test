@@ -26,13 +26,8 @@ SYNTHETIC_CATEGORIES = {"iid", "corr"} | NON_GAUSSIAN_CATEGORIES
 
 
 def resolve_results_base(exhaustive: bool, act_fn: str, pwl_knots: int) -> str:
-    """Resolve the base directory for saving results (the separation rules live here).
-
-    - exhaustive (interval counting) results go to ../results/intervals/ so that they
-      do not mix with the main results
-    - results of PWL-approximated models go one level deeper, to pwl/{act}{K}/
-    With the default settings (non-exhaustive, ReLU) this returns ../results.
-    """
+    """Return the results directory: ../results, with intervals/ for the interval-count
+    experiment and pwl/{act}{K}/ for PWL-approximated models."""
     results_base = "../results/intervals" if exhaustive else "../results"
     model_tag = model_result_tag(act_fn, pwl_knots)
     if model_tag:
@@ -67,23 +62,17 @@ def fn(args):
     input_x = input_x.clone().detach().to(dtype=torch.float64)
     ref_x = ref_x.clone().detach().to(dtype=torch.float64)
 
-    # Choose the model:
-    #   model_seed given (independent-model experiment, one p-value = one model): train a
-    #       throwaway model for this iteration inside the worker. The ONNX model lives only in
-    #       memory and is not saved to disk. One worker = one core = one model (training uses
-    #       one thread), and many workers train and run inference in parallel.
-    #   otherwise: load the shared trained model resolved from the settings.
+    # Interval-count experiment (model_seed given): train a model for this iteration in memory.
+    # Otherwise: load the trained model.
     if model_seed is not None:
         if act_fn != "relu" or pwl_knots != 0:
             raise ValueError("model_seed (in-job training) supports only ReLU models")
-        # Lazy import so that the training-only dependencies (onnxsim etc.) are not needed
-        # for the regular experiments
+        # imported here because only this experiment trains models
         from model import train_synthetic_model_ephemeral
 
         onnx_model = train_synthetic_model_ephemeral(image_size, model_seed, act_fn)
     else:
-        # Resolve the model path including the activation function and the PWL setting
-        # (SiLU models can be used for inference only after the approximation, pwl_knots > 0)
+        # SiLU models require the PWL approximation (pwl_knots > 0)
         onnx_path = resolve_onnx_path(category, image_size, act_fn, pwl_knots)
         onnx_model = onnx.load(onnx_path)
 
@@ -122,9 +111,8 @@ def fn(args):
         salient_region = si_model.roi
         score_map = si_model.score_map
 
-        # Exhaustive mode (only with --exhaustive):
-        # search the whole parametric line to collect the interval information for counting.
-        # The outputs above (selective_p etc.) are already fixed and are not affected by this re-run.
+        # --exhaustive: search the whole parametric line to count the intervals
+        # (the p-values above are not affected)
         searched_intervals = None
         truncated_intervals = None
         search_count = None
@@ -143,15 +131,12 @@ def fn(args):
             search_count = ex_result.search_count
             detect_count = ex_result.detect_count
 
-        # Compute permutation p-value
-        # Pool and permute the input and reference images to build the distribution of |z|
-        # under the null. construct_hypothesis takes the (input, reference) tuple and var
-        # (reference_data is set inside it, so it does not need to be assigned beforehand).
+        # Permutation p-value: permute the pooled pixels of the input and reference images
+        # to build the null distribution of |z|
         perm_rng = np.random.default_rng(seed)
         corr_z_list = []
         B = 1000
-        # Permuted samples in which no anomalous region is detected (NoHypothesisError) are
-        # skipped; max_permutation_error bounds the number of skipped samples
+        # permuted samples with no detected region are skipped
         max_permutation_error = 10 * B
         cnt = 0
         permutation_error = 0
@@ -305,7 +290,7 @@ def experiment(
                 exhaustive,
                 act_fn,
                 pwl_knots,
-                # In the independent-model experiment, each iteration trains a throwaway model with its own seed
+                # model seed of this iteration (interval-count experiment)
                 model_seed_base + idx if model_seed_base is not None else None,
             )
             for idx in range(num_iter)
@@ -324,7 +309,7 @@ def experiment(
         truncated_intervals = []
         search_count = []
         detect_count = []
-        # Model seeds of the iterations that yielded a p-value (independent-model experiment)
+        # model seeds (interval-count experiment)
         model_seeds = []
         for i in range(num_iter):
             if (
@@ -381,7 +366,6 @@ def experiment(
         result_dict["search_count"] = search_count
         result_dict["detect_count"] = detect_count
 
-    # In the independent-model experiment, also record the model seed of each iteration that yielded a p-value
     if model_seed_base is not None:
         result_dict["model_seeds"] = model_seeds
 
@@ -390,9 +374,6 @@ def experiment(
     else:
         error = "power"
 
-    # Keep the exhaustive (interval counting) and PWL results separate from the main
-    # FPR/power results (the rules are in resolve_results_base).
-    # With the default settings, results_base=../results.
     results_base = resolve_results_base(exhaustive, act_fn, pwl_knots)
 
     match category:
@@ -429,18 +410,13 @@ if __name__ == "__main__":
     cmdline_parser.add_argument("-iter", "--iter", type=int)
     cmdline_parser.add_argument("-seed", "--seed", type=int)
     cmdline_parser.add_argument("-distance", "--distance", type=float, default=None)
-    # Exhaustive mode that collects the interval counts (searched/truncated intervals, search/detect count)
+    # count the intervals over the whole parametric line (Appendix D)
     cmdline_parser.add_argument("--exhaustive", action="store_true")
-    # Base value of the model seed for the independent-model experiment (one p-value = one model).
-    # If given, each iteration idx trains a throwaway model with seed = base + idx inside the worker
-    # (one core = one model; models are not saved to disk). Shifting the base per category prevents
-    # the same model from being reproduced across categories.
-    # If omitted, the shared trained models are used.
+    # interval-count experiment: iteration idx trains its own model with seed = base + idx
     cmdline_parser.add_argument(
         "-model_seed_base", "--model_seed_base", type=int, default=None
     )
-    # Activation function and number of knots of the piecewise-linear approximation
-    # (silu requires pwl_knots > 0)
+    # activation function and number of PWL knots (silu requires pwl_knots > 0)
     cmdline_parser.add_argument("-act_fn", "--act_fn", type=str, default="relu")
     cmdline_parser.add_argument("-pwl_knots", "--pwl_knots", type=int, default=0)
 
