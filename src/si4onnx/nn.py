@@ -17,7 +17,6 @@ from .layers import (
     Shape,
     Slice,
     Exp,
-    Erf,
     Flatten,
     ConstantOfShape,
     EyeLike,
@@ -77,7 +76,7 @@ class NN(torch.nn.Module):
             "Relu": Relu,
             "LeakyRelu": LeakyRelu,
             # custom op (domain "si4onnx") for piecewise-linear approximation
-            # of smooth activations such as SiLU/Swish and GELU
+            # of smooth activations such as SiLU/Swish
             "PiecewiseLinearApprox": PiecewiseLinearApprox,
             "Sigmoid": Sigmoid,
             "Conv": Conv,
@@ -90,7 +89,6 @@ class NN(torch.nn.Module):
             "Shape": Shape,
             "Slice": Slice,
             "Exp": Exp,
-            "Erf": Erf,
             "Flatten": Flatten,
             "ConstantOfShape": ConstantOfShape,
             "EyeLike": EyeLike,

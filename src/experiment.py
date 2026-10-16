@@ -21,7 +21,7 @@ from dataset import (
 
 # Synthetic data categories: Gaussian noise (iid / corr) and the non-Gaussian
 # noise families used in the robustness experiment.
-NON_GAUSSIAN_CATEGORIES = {"skewnorm", "exponnorm", "gennormsteep", "gennormflat", "t"}
+NON_GAUSSIAN_CATEGORIES = {"skewnorm", "exponnorm", "gennormsteep", "t"}
 SYNTHETIC_CATEGORIES = {"iid", "corr"} | NON_GAUSSIAN_CATEGORIES
 
 
@@ -83,7 +83,7 @@ def fn(args):
         onnx_model = train_synthetic_model_ephemeral(image_size, model_seed, act_fn)
     else:
         # Resolve the model path including the activation function and the PWL setting
-        # (SiLU / GELU models can be used for inference only after the approximation, pwl_knots > 0)
+        # (SiLU models can be used for inference only after the approximation, pwl_knots > 0)
         onnx_path = resolve_onnx_path(category, image_size, act_fn, pwl_knots)
         onnx_model = onnx.load(onnx_path)
 
@@ -274,7 +274,7 @@ def experiment(
             var = np.concatenate([top, bottom], axis=0)
             mask_list = [None] * num_iter
 
-        case "skewnorm" | "exponnorm" | "gennormsteep" | "gennormflat" | "t":
+        case "skewnorm" | "exponnorm" | "gennormsteep" | "t":
             image_list = generate_images_non_iid(
                 image_size, category, distance, num_samples=num_iter * 2
             )
@@ -408,7 +408,7 @@ def experiment(
             file_name = f"corr_size{image_size}_signal{int(signal)}_seed{seed}.pickle"
             with open(os.path.join(save_dir, file_name), "wb") as f:
                 pickle.dump(result_dict, f)
-        case "skewnorm" | "exponnorm" | "gennormsteep" | "gennormflat" | "t":
+        case "skewnorm" | "exponnorm" | "gennormsteep" | "t":
             save_dir = f"{results_base}/robust/{error}/"
             os.makedirs(save_dir, exist_ok=True)
             file_name = (
@@ -440,7 +440,7 @@ if __name__ == "__main__":
         "-model_seed_base", "--model_seed_base", type=int, default=None
     )
     # Activation function and number of knots of the piecewise-linear approximation
-    # (silu/gelu require pwl_knots > 0)
+    # (silu requires pwl_knots > 0)
     cmdline_parser.add_argument("-act_fn", "--act_fn", type=str, default="relu")
     cmdline_parser.add_argument("-pwl_knots", "--pwl_knots", type=int, default=0)
 

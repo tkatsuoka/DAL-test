@@ -25,7 +25,7 @@ cd scripts
 ./submit_synthetic_power.sh     # synthetic data, power (iid + corr)
 ./submit_robust.sh              # robustness (non-Gaussian noise)
 ./submit_intervals.sh           # interval counts (exhaustive): iid/corr x size 8/16/32/64
-./submit_pwl_synthetic.sh fpr   # piecewise-linear (PWL) approximation of SiLU models
+./submit_pwl_synthetic.sh       # SiLU models with the piecewise-linear (PWL) approximation, FPR
 ```
 
 The default sweeps are listed below. All drivers use the threshold `--thr 0.8` of
@@ -35,15 +35,15 @@ The default sweeps are listed below. All drivers use the threshold `--thr 0.8` o
 | --- | --- | --- | --- | --- | --- |
 | `submit_synthetic_fpr.sh` | `iid`, `corr` | size 8/16/32/64, signal 0, seed 0-9 | 300 (size 8), 120 (others) | 80 | `../results/{cat}/fpr/` |
 | `submit_synthetic_power.sh` | `iid`, `corr` | size 64, signal 1/2/3/4, seed 0-9 | 110 | 80 | `../results/{cat}/power/` |
-| `submit_robust.sh` | `skewnorm`, `exponnorm`, `gennormsteep`, `gennormflat`, `t` | size 16, signal 0, distance 0.01/0.02/0.03/0.04, seed 0-9 | 120 | 200 | `../results/robust/fpr/` |
+| `submit_robust.sh` | `skewnorm`, `exponnorm`, `gennormsteep`, `t` | size 16, signal 0, distance 0.01/0.02/0.03/0.04, seed 0-9 | 120 | 160 | `../results/robust/fpr/` |
 | `submit_intervals.sh` | `iid`, `corr` | size 8/16/32/64 | see below | 20 | `../results/intervals/` |
-| `submit_pwl_synthetic.sh` | `iid`, `corr` | see below | same as FPR / power | 80 per mode (K=8) | `../results/pwl/` |
+| `submit_pwl_synthetic.sh` | `iid`, `corr` | SiLU, K=8, size 8/16/32/64, signal 0, seed 0-9 | 300 (size 8), 120 (others) | 80 | `../results/pwl/silu8/` |
 
 To change a sweep, edit the variables at the top of each script (`SIZES`, `SEEDS`, `SIGNALS`, etc.).
 
 ### Selecting categories
 
-All drivers accept category names as arguments (for `submit_pwl_synthetic.sh`, after the mode).
+All drivers accept category names as arguments.
 **With no arguments, every category is submitted**; with arguments, only the given categories are submitted.
 
 ```bash
@@ -117,31 +117,23 @@ python plot_intervals.py     # writes PDFs to ../plots/figures/intervals/
 
 ### Piecewise-linear (PWL) experiment
 
-`submit_pwl_synthetic.sh` measures FPR / power on synthetic data with SiLU diffusion models whose
-activations are replaced by a piecewise-linear approximation (`PiecewiseLinearApprox`).
-The number of knots K is set by `KNOTS` at the top of the script (default: K=8 only; list several
-values to sweep over K). Knots are placed by equidistributing the curvature (`KNOT_METHOD=curvature`),
-which gives high accuracy with few linear pieces.
+`submit_pwl_synthetic.sh` measures the FPR on synthetic data with SiLU diffusion models whose
+activations are replaced by a piecewise-linear approximation (`PiecewiseLinearApprox`) with K=8 knots.
+The knots are placed by equidistributing the curvature, which gives high accuracy with few linear pieces.
 
 ```bash
-./submit_pwl_synthetic.sh fpr          # FPR: iid, corr x size 8/16/32/64 x K x seed
-./submit_pwl_synthetic.sh fpr iid      # FPR: iid only
-./submit_pwl_synthetic.sh power iid    # power: iid only (size 64, signal 1-4)
+./submit_pwl_synthetic.sh          # iid, corr x size 8/16/32/64 x seed
+./submit_pwl_synthetic.sh iid      # iid only
 ```
 
 - **Requirement**: trained models `model/syn/sim_diffusion_silu_size{S}_...onnx`
   (run `python model.py --category syn --act_fn silu` in `src/` first).
-- Missing `pwl{K}_` models are **generated automatically** by `rewrite_pwl.py` on the login node before
+- Missing `pwl8_` models are **generated automatically** by `rewrite_pwl.py` on the login node before
   submission (graph rewriting only; takes a few seconds). If the trained `sim_` model is missing,
   the script prints an error and stops.
-- The `pwl{K}_` file names do not record the knot placement method. After changing `KNOT_METHOD`,
-  delete the existing `pwl` models so that they are regenerated.
-- Number of jobs: categories x sizes x K values x seeds for FPR, i.e. 2 x 4 x 1 x 10 = **80 jobs** with
-  the default K=8 (320 jobs with four K values). Narrow it down with category arguments or by editing
-  `KNOTS` / `FPR_SIZES`.
-- **Results are kept in a separate tree**, `../results/pwl/{act_fn}{K}/`
+- Number of jobs: categories x sizes x seeds = 2 x 4 x 10 = **80 jobs**.
+- **Results are kept in a separate tree**, `../results/pwl/silu8/`
   (e.g. `../results/pwl/silu8/iid/fpr/iid_size16_signal0_seed0.pickle`), apart from the ReLU results.
-- The activation function is set by `ACT_FN` at the top of the script (`silu` by default; `gelu` is also accepted).
 
 ## Shared settings (`common.sh`)
 
@@ -172,4 +164,4 @@ environment variable `MYARGS` (`qsub -v MYARGS=...`), and `jobs/experiment.pbs` 
 | `submit_synthetic_power.sh` | Synthetic data, power (iid / corr) |
 | `submit_robust.sh` | Robustness to non-Gaussian noise |
 | `submit_intervals.sh` | Interval counts with one independently trained model per p-value |
-| `submit_pwl_synthetic.sh` | FPR / power of PWL-approximated SiLU models |
+| `submit_pwl_synthetic.sh` | FPR of PWL-approximated SiLU models |

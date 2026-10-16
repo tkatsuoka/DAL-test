@@ -61,7 +61,7 @@ METRIC_FILENAMES = {
     "search_count": "num_of_intervals.pdf",
 }
 
-# Match the existing calculation_time figure (plots/figures/syn/calculation_time.pdf)
+# Plot style
 LOG_X = False                # linear x-axis (number of pixels)
 LOG_Y_METRICS = {"time"}     # metrics on a log y-axis (time only; interval counts linear)
 ERROR_BAND = None            # band for the spread across models: "std" | "sem" | None
@@ -133,7 +133,6 @@ def collect(category: str, metric: str):
 def plot_metric(metric: str) -> None:
     """Plot one metric with one line per category in a single figure and save it.
 
-    Styling follows the existing calculation_time figure:
     x-axis = number of pixels (size^2, linear), "x" markers; the y-axis is log scale for the
     metrics in LOG_Y_METRICS (time) and linear for the interval counts.
     """

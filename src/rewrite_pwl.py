@@ -1,15 +1,13 @@
-"""Replace smooth activation functions in an ONNX model with piecewise-linear approximation nodes.
+"""Replace the SiLU activations in an ONNX model with piecewise-linear approximation nodes.
 
-Detects SiLU (Swish) / GELU subgraphs in a trained model and replaces them with
+Detects SiLU (Swish) subgraphs in a trained model and replaces them with
 the custom node "PiecewiseLinearApprox" in the si4onnx domain.
 si4onnx interprets and executes the ONNX graph itself, so it can handle custom
 nodes outside the standard opset (the rewritten model cannot be run with
-onnxruntime; to measure the prediction gap from the original function, keep
-the original model separately).
+onnxruntime).
 
-Target patterns (as exported by torch.onnx):
+Target pattern (as exported by torch.onnx):
     SiLU : X -> Sigmoid -> Mul(X, .)
-    GELU : X -> Div(sqrt(2)) or Mul(1/sqrt(2)) -> Erf -> Add(1) -> Mul -> Mul(0.5)
 
 Usage:
     python rewrite_pwl.py --input ../model/syn/sim_diffusion_silu_size16_....onnx \
@@ -18,7 +16,6 @@ Usage:
 """
 
 import argparse
-import math
 import os
 from collections import defaultdict
 
@@ -33,17 +30,14 @@ from onnx import helper, numpy_helper
 CUSTOM_DOMAIN = "si4onnx"
 CUSTOM_OP_TYPE = "PiecewiseLinearApprox"
 DEFAULT_NUM_KNOTS = 8
-# Knot placement method. "curvature" equidistributes |f''|^(1/2) (the asymptotically optimal
-# placement for piecewise-linear interpolation); it concentrates knots near the origin, where
-# the curvature is high, and is therefore accurate even with few knots.
-# "uniform" places knots at equal spacing (for comparison).
-DEFAULT_KNOT_METHOD = "curvature"
-KNOT_METHODS = ("curvature", "uniform")
-# Range where the SiLU / GELU nonlinearity is concentrated. Outside this range, we
+# Knots are placed by equidistributing |f''|^(1/2) (the asymptotically optimal placement for
+# piecewise-linear interpolation); this concentrates knots near the origin, where the
+# curvature is high, and is therefore accurate even with few knots.
+# Range where the SiLU nonlinearity is concentrated. Outside this range, we
 # extrapolate along the asymptotes (TAIL_SLOPES below)
 DEFAULT_KNOT_RANGE = (-8.0, 8.0)
-# Asymptotic slopes (left tail, right tail) of each activation. SiLU and GELU both approach 0 and x
-TAIL_SLOPES = {"silu": (0.0, 1.0), "gelu": (0.0, 1.0)}
+# Asymptotic slopes (left tail, right tail) of SiLU, which approaches 0 and x
+TAIL_SLOPES = {"silu": (0.0, 1.0)}
 # Operators that must not remain on the input-dependent path after the rewrite.
 # si4onnx cannot treat them as piecewise linear (Sigmoid/Exp are passed through with b=None)
 SMOOTH_OP_TYPES = {"Sigmoid", "Erf", "Tanh", "Exp", "Softmax"}
@@ -56,8 +50,6 @@ def activation_values(act_fn: str, x: np.ndarray) -> np.ndarray:
     t = torch.from_numpy(np.asarray(x, dtype=np.float64))
     if act_fn == "silu":
         return torch.nn.functional.silu(t).numpy()
-    if act_fn == "gelu":
-        return torch.nn.functional.gelu(t).numpy()
     raise ValueError(f"Unsupported activation function: {act_fn}")
 
 
@@ -86,7 +78,7 @@ def _curvature_knots(
     if not np.all(np.diff(knots) > 0):
         raise ValueError(
             "curvature-based knots are not strictly increasing; "
-            "use method='uniform' or reduce num_knots"
+            "reduce num_knots"
         )
     return knots
 
@@ -95,7 +87,6 @@ def make_pwl_params(
     act_fn: str,
     num_knots: int = DEFAULT_NUM_KNOTS,
     knot_range: tuple[float, float] = DEFAULT_KNOT_RANGE,
-    method: str = DEFAULT_KNOT_METHOD,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate the piecewise-linear approximation parameters (knots, slopes, intercepts).
 
@@ -103,17 +94,11 @@ def make_pwl_params(
     knots, and extrapolates continuously outside the approximation range with the same
     slopes as the asymptotes. Segment j covers [knots[j-1], knots[j]) (j=0 is the left
     tail and j=M the right tail; the number of segments is the number of knots + 1).
-    The knot placement is selected by method (default: curvature).
+    The knots are placed by equidistributing the curvature (_curvature_knots).
     """
     if num_knots < 2:
         raise ValueError("num_knots must be >= 2")
-    if method not in KNOT_METHODS:
-        raise ValueError(f"Unknown knot method: {method} (available: {KNOT_METHODS})")
-    x_min, x_max = knot_range
-    if method == "curvature":
-        knots = _curvature_knots(act_fn, num_knots, knot_range)
-    else:
-        knots = np.linspace(x_min, x_max, num_knots, dtype=np.float64)
+    knots = _curvature_knots(act_fn, num_knots, knot_range)
     values = activation_values(act_fn, knots)
     left_slope, right_slope = TAIL_SLOPES[act_fn]
 
@@ -160,26 +145,6 @@ def _build_consumer_map(graph) -> dict[str, list]:
     return consumers
 
 
-def _build_constant_map(graph) -> dict[str, np.ndarray]:
-    """Build a name -> ndarray lookup of the values of initializers and Constant nodes."""
-    values = {}
-    for init in graph.initializer:
-        values[init.name] = numpy_helper.to_array(init)
-    for node in graph.node:
-        if node.op_type == "Constant":
-            for attr in node.attribute:
-                if attr.name == "value":
-                    values[node.output[0]] = numpy_helper.to_array(attr.t)
-    return values
-
-
-def _is_scalar_close(constants: dict, name: str, target: float) -> bool:
-    if name not in constants:
-        return False
-    arr = constants[name]
-    return arr.size == 1 and np.isclose(float(arr.reshape(-1)[0]), target, rtol=1e-4)
-
-
 def _sole_consumer(consumers: dict, tensor_name: str):
     nodes = consumers.get(tensor_name, [])
     return nodes[0] if len(nodes) == 1 else None
@@ -222,82 +187,7 @@ def _find_silu_patterns(graph) -> list[dict]:
     return patterns
 
 
-def _find_gelu_patterns(graph) -> list[dict]:
-    """Detect GELU (erf variant) patterns.
-
-    Assumes the subgraph for 0.5 * x * (1 + erf(x / sqrt(2))) exported by torch.onnx:
-        X -> Div(sqrt(2)) or Mul(1/sqrt(2)) -> Erf -> Add(1) -> Mul -> Mul(0.5) -> Y
-    The two Mul nodes (multiplying by X / by 0.5) may appear in either order.
-    """
-    consumers = _build_consumer_map(graph)
-    constants = _build_constant_map(graph)
-    patterns = []
-    for erf in graph.node:
-        if erf.op_type != "Erf":
-            continue
-        # The input of Erf is produced by the node that scales X by 1/sqrt(2)
-        scale = next(
-            (n for n in graph.node if erf.input[0] in n.output),
-            None,
-        )
-        if scale is None:
-            continue
-        if scale.op_type == "Div" and _is_scalar_close(
-            constants, scale.input[1], math.sqrt(2.0)
-        ):
-            x_name = scale.input[0]
-        elif scale.op_type == "Mul":
-            const_inputs = [i for i in scale.input if _is_scalar_close(constants, i, 1.0 / math.sqrt(2.0))]
-            if len(const_inputs) != 1:
-                continue
-            x_name = next(i for i in scale.input if i != const_inputs[0])
-        else:
-            continue
-
-        # Erf -> Add(1)
-        add = _sole_consumer(consumers, erf.output[0])
-        if add is None or add.op_type != "Add":
-            continue
-        if not any(
-            _is_scalar_close(constants, i, 1.0) for i in add.input if i != erf.output[0]
-        ):
-            continue
-
-        # Add -> Mul -> Mul (multiply by X and 0.5 in either order)
-        mul1 = _sole_consumer(consumers, add.output[0])
-        if mul1 is None or mul1.op_type != "Mul":
-            continue
-        mul2 = _sole_consumer(consumers, mul1.output[0])
-        if mul2 is None or mul2.op_type != "Mul":
-            continue
-        others1 = [i for i in mul1.input if i != add.output[0]]
-        others2 = [i for i in mul2.input if i != mul1.output[0]]
-        if len(others1) != 1 or len(others2) != 1:
-            continue
-        pair = (others1[0], others2[0])
-        is_x_then_half = pair[0] == x_name and _is_scalar_close(constants, pair[1], 0.5)
-        is_half_then_x = _is_scalar_close(constants, pair[0], 0.5) and pair[1] == x_name
-        if not (is_x_then_half or is_half_then_x):
-            continue
-
-        patterns.append(
-            {
-                "input": x_name,
-                "output": mul2.output[0],
-                "removed_outputs": {
-                    scale.output[0],
-                    erf.output[0],
-                    add.output[0],
-                    mul1.output[0],
-                    mul2.output[0],
-                },
-                "anchor_output": mul2.output[0],
-            }
-        )
-    return patterns
-
-
-PATTERN_FINDERS = {"silu": _find_silu_patterns, "gelu": _find_gelu_patterns}
+PATTERN_FINDERS = {"silu": _find_silu_patterns}
 
 
 # ---------------------------------------------------------------------------
@@ -350,7 +240,6 @@ def rewrite_model(
     act_fn: str,
     num_knots: int = DEFAULT_NUM_KNOTS,
     knot_range: tuple[float, float] = DEFAULT_KNOT_RANGE,
-    method: str = DEFAULT_KNOT_METHOD,
 ) -> tuple[onnx.ModelProto, int]:
     """Replace the act_fn subgraphs in the model with PWL custom nodes.
 
@@ -358,7 +247,7 @@ def rewrite_model(
     -------
     (rewritten_model, num_replaced)
     """
-    knots, slopes, intercepts = make_pwl_params(act_fn, num_knots, knot_range, method)
+    knots, slopes, intercepts = make_pwl_params(act_fn, num_knots, knot_range)
     graph = model.graph
     patterns = PATTERN_FINDERS[act_fn](graph)
 
@@ -414,19 +303,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=str, required=True, help="Path to the input ONNX model")
     parser.add_argument("--output", type=str, default=None, help="Output path (default: pwl{K}_ prefix)")
-    parser.add_argument("--act_fn", type=str, default="silu", choices=["silu", "gelu"])
+    parser.add_argument("--act_fn", type=str, default="silu", choices=["silu"])
     parser.add_argument("--num_knots", type=int, default=DEFAULT_NUM_KNOTS,
                         help="Number of knots K (the number of segments is K + 1)")
-    parser.add_argument("--knot_method", type=str, default=DEFAULT_KNOT_METHOD,
-                        choices=list(KNOT_METHODS),
-                        help="Knot placement method (curvature: curvature-equidistributed, uniform: equally spaced)")
     parser.add_argument("--x_min", type=float, default=DEFAULT_KNOT_RANGE[0])
     parser.add_argument("--x_max", type=float, default=DEFAULT_KNOT_RANGE[1])
     args = parser.parse_args()
 
     model = onnx.load(args.input)
     model, num_replaced = rewrite_model(
-        model, args.act_fn, args.num_knots, (args.x_min, args.x_max), args.knot_method
+        model, args.act_fn, args.num_knots, (args.x_min, args.x_max)
     )
     if num_replaced == 0:
         raise RuntimeError(

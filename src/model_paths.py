@@ -1,8 +1,8 @@
 """Naming convention and path resolution for the ONNX model files.
 
 Naming convention:
-    diffusion_size{S}_timesteps{T}_step{P}.onnx          : ReLU model (no activation tag, for backward compatibility)
-    diffusion_{act}_size{S}_timesteps{T}_step{P}.onnx    : SiLU / GELU model
+    diffusion_size{S}_timesteps{T}_step{P}.onnx          : ReLU model (no activation tag)
+    diffusion_{act}_size{S}_timesteps{T}_step{P}.onnx    : SiLU model (act = silu)
     sim_ prefix                                          : simplified with onnxsim
     pwl{K}_ prefix                                       : activations replaced by a piecewise-linear approximation (K knots)
 
@@ -11,7 +11,7 @@ are trained inside each job and then discarded (train_synthetic_model_ephemeral 
 They are never written to disk, so this naming convention does not apply to them.
 """
 
-SUPPORTED_ACT_FNS = {"relu", "silu", "gelu"}
+SUPPORTED_ACT_FNS = {"relu", "silu"}
 
 
 def model_config(category: str) -> tuple[str, int, int]:
@@ -43,7 +43,7 @@ def build_model_filename(
     """
     if act_fn not in SUPPORTED_ACT_FNS:
         raise ValueError(f"Unsupported activation function: {act_fn}")
-    # ReLU model files carry no activation name (backward compatibility)
+    # ReLU model files carry no activation name
     act_tag = "" if act_fn == "relu" else f"{act_fn}_"
     if pwl_knots > 0:
         prefix = f"pwl{pwl_knots}_"
@@ -59,20 +59,13 @@ def resolve_onnx_path(
     image_size: int,
     act_fn: str = "relu",
     pwl_knots: int = 0,
-    for_inference: bool = True,
 ) -> str:
     """Resolve the path of the ONNX model for a category and settings.
 
-    Parameters
-    ----------
-    for_inference : bool
-        If True, raise an error for settings that cannot be used for selective
-        inference (e.g., a smooth activation without the PWL approximation).
-        Set to False for forward-only uses such as comparing the outputs
-        before and after the approximation.
+    Raises an error for settings that cannot be used for selective inference
+    (a SiLU model without the PWL approximation).
     """
-    if for_inference:
-        validate_activation_config(act_fn, pwl_knots)
+    validate_activation_config(act_fn, pwl_knots)
     model_dir, timesteps, step = model_config(category)
     filename = build_model_filename(image_size, timesteps, step, act_fn, pwl_knots)
     return f"{model_dir}/{filename}"
@@ -82,7 +75,7 @@ def validate_activation_config(act_fn: str, pwl_knots: int):
     """Check that (act_fn, pwl_knots) is a valid combination for selective inference."""
     if act_fn == "relu" and pwl_knots != 0:
         raise ValueError("ReLU is already piecewise linear; pwl_knots must be 0.")
-    if act_fn in ("silu", "gelu") and pwl_knots <= 0:
+    if act_fn == "silu" and pwl_knots <= 0:
         raise ValueError(
             f"{act_fn} model requires a piecewise-linear approximation for valid "
             "selective inference. Specify pwl_knots > 0 and use the model "

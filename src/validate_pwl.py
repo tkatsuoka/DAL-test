@@ -9,7 +9,7 @@ Requires no training and runs locally on CPU only. Checks:
      already-supported ops)
      (the intervals should be identical, since the segment-selection event is the
      sign pattern over all knots)
-  4. Export -> simplify -> rewrite SiLU / GELU CNNs, and check that (a, b, l, u)
+  4. Export -> simplify -> rewrite a SiLU CNN, and check that (a, b, l, u)
      from forward_si is consistent with forward for any z in the interval
   5. End-to-end check on a small untrained diffusion model
      (a real graph containing RandomNormalLike, Resize, Concat, etc.)
@@ -181,22 +181,21 @@ def test_1_pwl_params():
     # error inside the approximation range, which is not affected by this floor
     grid = np.linspace(-7.9, 7.9, 10001)
     silu_true = grid / (1.0 + np.exp(-grid))
-    for method in ["curvature", "uniform"]:
-        prev_err = np.inf
-        for num_knots in NUM_KNOTS_SWEEP:
-            knots, slopes, intercepts = make_pwl_params("silu", num_knots, method=method)
-            # Continuity: the left and right segments take the same value at each knot
-            left = slopes[:-1] * knots + intercepts[:-1]
-            right = slopes[1:] * knots + intercepts[1:]
-            assert np.max(np.abs(left - right)) < 1e-12, "discontinuity at knots"
-            # Monotone decrease of the approximation error
-            err = np.max(
-                np.abs(pwl_reference(grid, knots, slopes, intercepts) - silu_true)
-            )
-            print(f"  method={method}, num_knots={num_knots}: max_error={err:.2e}")
-            assert err < prev_err, "approximation error did not decrease"
-            prev_err = err
-        assert prev_err < 1e-3, "error with the largest num_knots is too large"
+    prev_err = np.inf
+    for num_knots in NUM_KNOTS_SWEEP:
+        knots, slopes, intercepts = make_pwl_params("silu", num_knots)
+        # Continuity: the left and right segments take the same value at each knot
+        left = slopes[:-1] * knots + intercepts[:-1]
+        right = slopes[1:] * knots + intercepts[1:]
+        assert np.max(np.abs(left - right)) < 1e-12, "discontinuity at knots"
+        # Monotone decrease of the approximation error
+        err = np.max(
+            np.abs(pwl_reference(grid, knots, slopes, intercepts) - silu_true)
+        )
+        print(f"  num_knots={num_knots}: max_error={err:.2e}")
+        assert err < prev_err, "approximation error did not decrease"
+        prev_err = err
+    assert prev_err < 1e-3, "error with the largest num_knots is too large"
     print("  PASS")
 
 
@@ -242,14 +241,13 @@ def test_3_relu_sum_equivalence():
 
 
 def test_4_cnn_consistency(work_dir):
-    print("Test 4: exported CNN (SiLU / GELU) forward_si consistency")
+    print("Test 4: exported CNN (SiLU) forward_si consistency")
     gen = torch.Generator().manual_seed(SEED)
     dummy = torch.randn(1, 1, 16, 16)
     x = torch.randn((1, 1, 16, 16), generator=gen, dtype=torch.float64)
-    for act_fn, module in [("silu", torch.nn.SiLU()), ("gelu", torch.nn.GELU())]:
-        torch.manual_seed(SEED)
-        model = export_and_rewrite(TinyCNN(module), dummy, act_fn, 32, work_dir, f"cnn_{act_fn}")
-        check_forward_si_consistency(model, x, label=f"cnn_{act_fn}")
+    torch.manual_seed(SEED)
+    model = export_and_rewrite(TinyCNN(torch.nn.SiLU()), dummy, "silu", 32, work_dir, "cnn_silu")
+    check_forward_si_consistency(model, x, label="cnn_silu")
     print("  PASS")
 
 

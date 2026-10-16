@@ -70,7 +70,7 @@ uv run python experiment.py --category corr --size 64 --thr 0.8 --signal 2 \
     --workers 8 --iter 100 --seed 0
 
 # Robustness to non-Gaussian noise (Appendix I):
-#   --category skewnorm / exponnorm / gennormsteep / gennormflat / t
+#   --category skewnorm / exponnorm / gennormsteep / t
 #   --distance is the 1-Wasserstein distance from N(0, 1)
 uv run python experiment.py --category t --size 16 --thr 0.8 --signal 0 \
     --distance 0.04 --workers 8 --iter 100 --seed 0
@@ -142,7 +142,7 @@ set `INCLUDE_PERMUTATION = True` in `src/plot_fpr.py`.
 | `src/experiment.py` | Selective inference experiments (type I error rate, power, robustness, interval counts) |
 | `src/dataset.py` | Synthetic data (independence / correlation / non-Gaussian noise) |
 | `src/model_paths.py` | Naming convention and path resolution of the ONNX models |
-| `src/rewrite_pwl.py` | Rewrites SiLU / GELU in an ONNX graph into a piecewise-linear operator |
+| `src/rewrite_pwl.py` | Rewrites SiLU in an ONNX graph into a piecewise-linear operator |
 | `src/validate_pwl.py` | Tests of the piecewise-linear approximation |
 | `src/plot_*.py` | Figures |
 | `src/si4onnx/` | Selective inference engine for ONNX models (bundled) |

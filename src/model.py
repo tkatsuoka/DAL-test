@@ -29,8 +29,8 @@ SYN_SAMPLING_STEP = 115
 SYN_IN_CH = 1
 
 # Offset of the training-data seed for the throwaway models.
-# The evaluation data use seeds 0..29 (+2023 for the reference images), so the
-# training data are moved to the 10000 range to keep them disjoint from the evaluation data.
+# The evaluation data use small seeds (the --seed values, and seed + 2023 for the reference
+# images), so the training data are moved to the 10000 range to keep them disjoint.
 TRAIN_DATA_SEED_OFFSET = 10000
 # ================================================================
 
@@ -114,8 +114,6 @@ class UNet(nn.Module):
             act_fn = nn.ReLU()
         elif act_fn == "silu":
             act_fn = nn.SiLU()
-        elif act_fn == "gelu":
-            act_fn = nn.GELU()
         else:
             raise ValueError(f"Unsupported activation function: {act_fn}")
 

@@ -10,7 +10,7 @@
 source "$(dirname "$0")/common.sh"
 
 # --- Experiment parameters -----------------------------------
-ALLOWED=("skewnorm" "exponnorm" "gennormsteep" "gennormflat" "t")   # selectable categories
+ALLOWED=("skewnorm" "exponnorm" "gennormsteep" "t")   # selectable categories
 resolve_categories "$@"    # filter by the arguments (result in CATEGORIES)
 DISTANCES=(0.01 0.02 0.03 0.04)
 SEEDS=(0 1 2 3 4 5 6 7 8 9)

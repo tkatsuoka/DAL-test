@@ -103,7 +103,7 @@ class LeakyRelu(Layer):
 class PiecewiseLinearApprox(Layer):
     """
     Piecewise-linear approximation of a smooth element-wise activation
-    function (e.g. SiLU/Swish, GELU), stored as a single custom node
+    function (e.g. SiLU/Swish), stored as a single custom node
     (op_type "PiecewiseLinearApprox", domain "si4onnx").
 
     The node must have the following float64 tensor attributes:
@@ -805,32 +805,6 @@ class Exp(Layer):
 
     def forward_si(self, a, b, l, u, z):
         output_a = torch.exp(a)
-        output_b = None
-        return output_a, output_b, l, u
-
-
-class Erf(Layer):
-    """
-    Error function. Only the forward pass is supported (e.g. for measuring
-    the prediction gap of a GELU model before piecewise-linear approximation).
-    Selective inference on an input-dependent Erf is not piecewise linear,
-    so forward_si raises an error instead of returning an invalid result.
-    """
-
-    def __init__(self, inputs, node):
-        super().__init__(inputs, node)
-
-    def forward(self, x):
-        output = torch.erf(x)
-        return output
-
-    def forward_si(self, a, b, l, u, z):
-        if b is not None:
-            raise NotImplementedError(
-                "Erf on an input-dependent path is not piecewise linear. "
-                "Replace it with PiecewiseLinearApprox using rewrite_pwl.py."
-            )
-        output_a = torch.erf(a)
         output_b = None
         return output_a, output_b, l, u
 

@@ -1,8 +1,7 @@
-"""Plot piecewise-linear approximations of activation functions against the true functions.
+"""Plot the piecewise-linear approximation of SiLU against the true function (Appendix C).
 
 Using the same parameter generation as rewrite_pwl.py (make_pwl_params), overlays the true
-shapes of SiLU / GELU with their piecewise-linear approximations for each number of knots K,
-with the knot positions marked by dots.
+shape of SiLU with its piecewise-linear approximation, with the knot positions marked by dots.
 
 No trained model is needed (only the function shapes are compared).
 
@@ -20,17 +19,15 @@ matplotlib.use("Agg")  # also works without a GUI (e.g., on a server)
 import matplotlib.pyplot as plt
 
 from rewrite_pwl import (
-    DEFAULT_KNOT_METHOD,
     DEFAULT_KNOT_RANGE,
     activation_values,
     make_pwl_params,
 )
 
-# ===== Settings (edit here to match the comparison setup) =======
+# ===== Settings =================================================
 OUTPUT_DIR = "../plots/figures/pwl"     # output directory for figures
-ACT_FNS = ["silu", "gelu"]              # activation functions to plot
+ACT_FNS = ["silu"]                      # activation functions to plot
 KNOTS_LIST = [8]                        # knots K to plot (experiment setting; K+1 pieces)
-KNOT_METHOD = DEFAULT_KNOT_METHOD       # knot placement method (curvature / uniform)
 KNOT_RANGE = DEFAULT_KNOT_RANGE         # approximation range (rewrite_pwl.py default)
 PLOT_RANGE = (-6.0, 6.0)                # x range to plot (for shape comparison)
 NUM_POINTS = 2001                       # grid points for plotting and error evaluation
@@ -43,7 +40,7 @@ FONT_SIZE_TICK = 16                     # tick labels
 FONT_SIZE_LEGEND = 15                   # legend
 # ================================================================
 
-ACT_LABELS = {"silu": "SiLU", "gelu": "GELU"}
+ACT_LABELS = {"silu": "SiLU"}
 
 # Apply common font sizes to the whole figure
 plt.rcParams.update(
@@ -73,7 +70,7 @@ def plot_activation(act_fn: str) -> None:
     ax.plot(x, y_true, color="black", linewidth=2, label=ACT_LABELS[act_fn])
     for num_knots in KNOTS_LIST:
         knots, slopes, intercepts = make_pwl_params(
-            act_fn, num_knots, KNOT_RANGE, KNOT_METHOD
+            act_fn, num_knots, KNOT_RANGE
         )
         y_pwl = pwl_values(x, knots, slopes, intercepts)
         (line,) = ax.plot(
@@ -97,7 +94,7 @@ def plot_activation(act_fn: str) -> None:
     fig.tight_layout()
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    out_path = os.path.join(OUTPUT_DIR, f"activation_{act_fn}_{KNOT_METHOD}.pdf")
+    out_path = os.path.join(OUTPUT_DIR, f"activation_{act_fn}_curvature.pdf")
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
     print(f"[{act_fn}] Saved: {out_path}")
