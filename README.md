@@ -27,8 +27,6 @@ The code covers the experiments on synthetic data:
 | Appendix D | Number of searched intervals and computation time |
 | Appendix I | Robustness to non-Gaussian noise |
 
-The real-world experiments (BraTS and MVTec AD) are not included.
-
 ## Setup
 
 Dependencies are managed with [uv](https://docs.astral.sh/uv/) (`pyproject.toml` / `uv.lock`).
