@@ -13,7 +13,7 @@ Target patterns (as exported by torch.onnx):
 
 Usage:
     python rewrite_pwl.py --input ../model/syn/sim_diffusion_silu_size16_....onnx \
-        --act_fn silu --num_knots 32
+        --act_fn silu --num_knots 8
     By default, the output path is the input path with the "sim_" prefix replaced by "pwl{num_knots}_".
 """
 
@@ -32,7 +32,7 @@ from onnx import helper, numpy_helper
 # ---------------------------------------------------------------------------
 CUSTOM_DOMAIN = "si4onnx"
 CUSTOM_OP_TYPE = "PiecewiseLinearApprox"
-DEFAULT_NUM_KNOTS = 32
+DEFAULT_NUM_KNOTS = 8
 # Knot placement method. "curvature" equidistributes |f''|^(1/2) (the asymptotically optimal
 # placement for piecewise-linear interpolation); it concentrates knots near the origin, where
 # the curvature is high, and is therefore accurate even with few knots.
